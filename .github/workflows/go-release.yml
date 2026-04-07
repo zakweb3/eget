@@ -47,7 +47,13 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add version.go
           git commit -m "chore: set version to ${{ env.RELEASE_VERSION }} for release"
-          git push
+          # Find the branch that contains this tag and push to it
+          BRANCH=$(git branch -r --contains HEAD | grep -E 'origin/(main|master)$' | head -1 | sed 's/origin\///' || echo "main")
+          git push origin HEAD:${BRANCH}
+          # Move the tag to the new commit so GoReleaser builds from the versioned commit
+          TAG=${GITHUB_REF#refs/tags/}
+          git tag -fa "$TAG" -m "Release $TAG"
+          git push origin "$TAG" --force
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
@@ -84,6 +90,10 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Switch back to the branch (we were on the tag)
+          BRANCH=$(git branch -r --contains HEAD | grep -E 'origin/(main|master)$' | head -1 | sed 's/origin\///' || echo "main")
+          git checkout ${BRANCH}
+          git pull origin ${BRANCH} --rebase || true
           git add version.go
           git commit -m "chore: bump to next dev version"
-          git push
+          git push origin ${BRANCH}
